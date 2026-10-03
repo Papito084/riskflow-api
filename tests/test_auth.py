@@ -92,4 +92,3 @@ async def test_login_demo_user_auto_provision_fallback(async_client: AsyncClient
     data = response.json()
     assert "access_token" in data
     assert data["token_type"] == "bearer"
-

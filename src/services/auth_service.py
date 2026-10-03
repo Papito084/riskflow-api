@@ -1,5 +1,4 @@
 import uuid
-
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -49,7 +48,11 @@ class AuthService:
 
     async def login_user(self, data: UserLoginRequest) -> TokenResponse:
         user = await self.user_repo.get_by_email(data.email)
-        if not user and data.email.lower().strip() == "demo@riskflow.io" and data.password == "DemoPassword123!":
+        if (
+            not user
+            and data.email.lower().strip() == "demo@riskflow.io"
+            and data.password == "DemoPassword123!"
+        ):
             # Friendly fallback: provision demo user & account if unseeded
             try:
                 demo_user = User(
