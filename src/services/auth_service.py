@@ -1,5 +1,7 @@
 import uuid
 
+from decimal import Decimal
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.config import settings
@@ -10,12 +12,13 @@ from src.core.security import (
     get_password_hash,
     verify_password,
 )
+from src.domain.enums import BrokerType, Currency
 from src.domain.exceptions import (
     InvalidCredentialsException,
     UnauthorizedAccessException,
     UserAlreadyExistsException,
 )
-from src.domain.models import User
+from src.domain.models import TradingAccount, User
 from src.repositories.user_repository import UserRepository
 from src.schemas.auth import (
     RefreshTokenRequest,
@@ -46,6 +49,31 @@ class AuthService:
 
     async def login_user(self, data: UserLoginRequest) -> TokenResponse:
         user = await self.user_repo.get_by_email(data.email)
+        if not user and data.email.lower().strip() == "demo@riskflow.io" and data.password == "DemoPassword123!":
+            # Friendly fallback: provision demo user & account if unseeded
+            try:
+                demo_user = User(
+                    email="demo@riskflow.io",
+                    hashed_password=get_password_hash("DemoPassword123!"),
+                )
+                self.session.add(demo_user)
+                await self.session.flush()
+                await self.session.refresh(demo_user)
+                account = TradingAccount(
+                    user_id=demo_user.id,
+                    name="FTMO Funded $100k",
+                    broker_type=BrokerType.PROP_FIRM,
+                    initial_balance=Decimal("100000.00"),
+                    current_balance=Decimal("100000.00"),
+                    currency=Currency.USD,
+                )
+                self.session.add(account)
+                await self.session.commit()
+                user = demo_user
+            except Exception:
+                await self.session.rollback()
+                user = await self.user_repo.get_by_email(data.email)
+
         if not user:
             raise InvalidCredentialsException("Invalid email or password.")
 

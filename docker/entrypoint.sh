@@ -25,8 +25,8 @@ fi
 echo "==> Running database migrations (alembic upgrade head)..."
 alembic upgrade head
 
-# Optional automated data seeding
-if [ "$SEED_ON_STARTUP" = "true" ]; then
+# Automated data seeding (enabled by default unless explicitly disabled)
+if [ "$SEED_ON_STARTUP" != "false" ]; then
   echo "==> Seeding database with realistic demo dataset..."
   python scripts/seed_data.py || echo "Warning: Seed script encountered an issue or data exists."
 fi
