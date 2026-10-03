@@ -1,0 +1,89 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-and-tests:
+    name: Code Quality & Automated Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: riskflow_user
+          POSTGRES_PASSWORD: riskflow_password
+          POSTGRES_DB: riskflow_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run Ruff Linter
+        run: |
+          ruff check .
+
+      - name: Run Ruff Format Check
+        run: |
+          ruff format --check .
+
+      - name: Run Mypy Type Checker
+        run: |
+          mypy
+
+      - name: Run Pytest with >=80% Coverage Enforcement
+        env:
+          POSTGRES_SERVER: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: riskflow_user
+          POSTGRES_PASSWORD: riskflow_password
+          POSTGRES_DB: riskflow_db
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          SECRET_KEY: testsecretkeyformockingenvironmentsthatis32charslong
+        run: |
+          pytest -v --cov=src --cov-report=term-missing --cov-report=xml --cov-fail-under=80
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 7

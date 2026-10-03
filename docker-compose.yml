@@ -1,0 +1,80 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: riskflow_api
+    restart: unless-stopped
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=True
+      - POSTGRES_SERVER=db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=riskflow_user
+      - POSTGRES_PASSWORD=riskflow_password
+      - POSTGRES_DB=riskflow_db
+      - DATABASE_URL=postgresql+asyncpg://riskflow_user:riskflow_password@db:5432/riskflow_db
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=supersecretjwtkeythatisatleast32characterslongforsecurity!
+      - METRICS_CACHE_TTL_SECONDS=60
+      - SEED_ON_STARTUP=true
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - riskflow-network
+
+  db:
+    image: postgres:16-alpine
+    container_name: riskflow_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=riskflow_user
+      - POSTGRES_PASSWORD=riskflow_password
+      - POSTGRES_DB=riskflow_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U riskflow_user -d riskflow_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - riskflow-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: riskflow_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - riskflow-network
+
+networks:
+  riskflow-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
